@@ -1,0 +1,710 @@
+MTSP R0
+NOP
+
+;保存用户程序寄存器的地址 
+;0xBF10  0xBF11 BF12 0xBF13 BF14 0xBF15
+; R0    R1   R2   R3   R4   R5  
+
+B START
+NOP
+
+DELINT:   ;中断处理程序
+	NOP
+	NOP
+	NOP
+	;保存用户程序现场
+	LI R6 0xBF
+	SLL R6 R6 0x00
+	ADDIU R6 0x10					;R6=0xBF10
+	SW R6 R0 0x00
+	SW R6 R1 0x01
+	SW R6 R2 0x02
+	
+
+	
+
+	
+	;R1=中断号
+	LW_SP R1 0x00
+	ADDSP 0x01
+	LI R0 0xFF
+	AND R1 R0
+	
+	;R2=应用程序的pc
+	LW_SP R2 0x00
+	ADDSP 0x01
+	
+	;保存r3
+	ADDSP 0xFF
+	SW_SP R3 0x00
+
+
+	
+	;保存用户程序返回地址
+	ADDSP 0xFF
+	SW_SP R7 0x00
+	
+	;提示终端，进入中断处理
+	LI R3 0x0F
+	MFPC R7 
+	ADDIU R7 0x03  
+	NOP
+	B TESTW 	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00
+	SW R6 R3 0x00
+	NOP
+	;输出中断号
+	MFPC R7 
+	ADDIU R7 0x03  
+	NOP
+	B TESTW 	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00 
+	SW R6 R1 0x00
+	NOP
+	
+	;提示终端，中断处理结束
+	LI R3 0x0F
+	MFPC R7 
+	ADDIU R7 0x03  
+	NOP
+	B TESTW 	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00 
+	SW R6 R3 0x00
+	NOP
+	
+	;R6保存返回地址
+	ADDIU3 R2 R6 0x00
+	
+	;用r3=IH（高位变成1）
+	MFIH R3
+	LI R0 0x80
+	SLL R0 R0 0x0
+	OR R3 R0
+	
+	;恢复现场
+	LI R7 0xBF
+	SLL R7 R7 0x00
+	ADDIU R7 0x10					;R7=0xBF10
+	LW R7 R0 0x00
+	LW R7 R1 0x01
+	LW R7 R2 0x02
+	
+	;r7=用户程序返回地址
+	LW_SP R7 0x00
+	
+	ADDSP 0x01
+	ADDSP 0x01
+	NOP
+	MTIH R3;
+	JR R6
+	LW_SP R3 0xFF
+	
+	NOP	
+
+
+;init  0x8251
+START:
+	;初始化IH寄存器，最高位为1时，允许中断，为0时不允许。初始化为0，kernel不允许中断
+	LI R0 0x07
+	MTIH R0
+	;初始化栈地址
+	LI R0 0xBF 
+	SLL R0 R0 0x00
+	ADDIU R0 0x10					;R0=0xBF10 
+	MTSP R0
+	NOP
+	
+	;用户寄存器值初始化
+	LI R6 0xBF 
+	SLL R6 R6 0x00
+	ADDIU R6 0x10					;R6=0xBF10 
+	LI R0 0x00
+	SW R6 R0 0x00
+	SW R6 R0 0x01
+	SW R6 R0 0x02
+	SW R6 R0 0x03
+	SW R6 R0 0x04
+	SW R6 R0 0x05
+		
+	;WELCOME
+	MFPC R7 
+	ADDIU R7 0x03  
+	NOP
+	B TESTW 	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LI R0 0x4F
+	SW R6 R0 0x00
+	NOP
+	
+	MFPC R7 
+	ADDIU R7 0x03  
+	NOP
+	B TESTW 	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LI R0 0x4B
+	SW R6 R0 0x00
+	NOP
+	
+	MFPC R7 
+	ADDIU R7 0x03  
+	NOP
+	B TESTW 	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LI R0 0x0A
+	SW R6 R0 0x00
+	NOP
+	
+	MFPC R7 
+	ADDIU R7 0x03  
+	NOP
+	B TESTW 	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LI R0 0x0D
+	SW R6 R0 0x00
+	NOP
+	
+
+	
+
+	
+
+	
+BEGIN:          ;检测命令
+	;接收字符，保存到r1
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R1 0x00
+	LI R6 0xff 
+  AND R1 R6 
+	NOP	
+
+	;检测是否为R命令		
+	LI R0 0x52
+	CMP R0 R1
+	BTEQZ SHOWREGS	
+	NOP	
+	;检测是否为D命令
+	LI R0 0x44
+	CMP R0 R1
+	BTEQZ SHOWMEM
+	NOP	
+	
+	;检测是否为A命令
+	LI R0 0x41
+	CMP R0 R1
+	BTEQZ GOTOASM
+	NOP	
+	
+	;检测是否为U命令
+	LI R0 0x55
+	CMP R0 R1
+	BTEQZ GOTOUASM
+	NOP	
+	;检测是否为G命令
+	LI R0 0x47
+	CMP R0 R1
+	BTEQZ GOTOCOMPILE
+	NOP		
+	
+	B BEGIN
+	NOP
+
+	
+;测试8251是否能写
+TESTW:	
+	NOP	 		
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	ADDIU R6 0x01 
+	LW R6 R0 0x00 
+	LI R6 0x01 
+	AND R0 R6 
+	BEQZ R0 TESTW     ;BF01&1=0 则等待	
+	NOP		
+	JR R7
+	NOP 
+	
+
+	
+;测试8251是否能读
+TESTR:	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	ADDIU R6 0x01 
+	LW R6 R0 0x00 
+	LI R6 0x02
+	AND R0 R6 
+	BEQZ R0 TESTR   ;BF01&2=0  则等待	
+	NOP	
+	JR R7
+	NOP 		
+
+;各处理块的入口
+GOTOUASM:
+	NOP
+	B UASM
+	NOP
+GOTOASM:
+	NOP
+	B ASM
+	NOP
+	
+GOTOCOMPILE:
+	NOP
+	B COMPILE
+	NOP
+	
+	
+SHOWREGS:    ;R命令，打印R0-R5
+	LI R1 0x06  ;R1递减  
+	LI R2 0x06   ;R2不变
+	
+LOOP:
+	LI R0  0xBF
+	SLL R0 R0 0x00
+	ADDIU R0 0x10
+	SUBU R2 R1 R3   ;R2=0,1,2,3
+	ADDU R0 R3 R0   ;R0=BF10...
+	LW R0 R3 0x00    ;R3=用户程序的 R0,R1,R2	
+
+	;发送低八位
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP
+	B TESTW	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=BF00	
+	SW R6 R3 0x00	
+	;发送高八位
+	SRA R3 R3 0x00
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP
+	B TESTW	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00	
+	SW R6 R3 0x00	
+	
+	ADDIU R1 0xFF
+	NOP
+	BNEZ R1 LOOP
+	NOP	
+	B BEGIN
+	NOP
+	
+
+	
+	
+
+	
+	
+	
+SHOWMEM:  ;查看内存	
+;D读取地址低位到r5
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R5 0x00	
+	LI R6 0xFF
+	AND R5 R6
+	NOP	
+	
+	;读取地址高位到r1
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R1 0x00
+	LI R6 0xFF
+	AND R1 R6
+	NOP	
+	
+	
+	
+	;R1存储地址
+	SLL R1 R1 0x00
+	OR R1 R5
+	
+	;读取显示次数低位到R5
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R5 0x00
+	LI R6 0xFF
+	AND R5 R6
+	NOP	
+	;读取显示次数高位到R2
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R2 0x00
+	LI R6 0xFF
+	AND R2 R6
+	NOP	
+	;R2保存内存个数
+	SLL R2 R2 0x00
+	OR R2 R5
+
+	
+		;循环发出	
+	
+MEMLOOP:		
+	
+	LW R1 R3 0x00    ;R3为内存数据	
+
+	;发送低八位
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP
+	B TESTW	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00	
+	SW R6 R3 0x00	
+	;发送高八位
+
+	SRA R3 R3 0x00
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP
+	B TESTW	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00	
+	SW R6 R3 0x00	
+	
+	ADDIU R1 0x01   ;R1=地址加加加
+	ADDIU R2 0xFF
+	NOP
+	BNEZ R2 MEMLOOP
+	NOP	
+
+	B BEGIN
+	NOP		
+
+  
+
+ ;汇编	
+ASM:  
+	;A命令读取地址低位到r5
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R5 0x00
+	LI R6 0xFF
+	AND R5 R6
+	NOP	
+	;读取地址高位到r1
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R1 0x00
+	LI R6 0xFF
+	AND R1 R6
+	NOP	
+	
+	;R1存储地址
+	SLL R1 R1 0x00
+	OR R1 R5
+	
+	
+	
+	
+	;检测地址是否合法
+	LI R0 0x00
+	CMP R0 R1      
+  BTEQZ GOTOBEGIN
+	NOP	
+	
+ 
+	;读取数据低位到R5
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R5 0x00
+	LI R6 0xFF
+	AND R5 R6
+	NOP	
+	
+
+	;读取数据高位到R2
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R2 0x00
+	LI R6 0xFF
+	AND R2 R6
+	NOP	
+	;R2保存数据
+	SLL R2 R2 0x00
+	OR R2 R5
+			
+	SW R1 R2 0x00	
+	NOP
+	
+	B ASM
+	NOP
+	
+GOTOBEGIN:
+	NOP
+	B BEGIN
+	NOP
+	
+	
+	
+	
+;反汇编：将需要反汇编的地址处的值发给终端处理	
+UASM:
+;读取地址低位到r5
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R5 0x00
+	LI R6 0xFF
+	AND R5 R6
+	NOP	
+	;读取地址高位到r1
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R1 0x00
+	LI R6 0xFF
+	AND R1 R6
+	NOP	
+	
+	
+	
+	;R1存储地址
+	SLL R1 R1 0x00
+	OR R1 R5
+	
+	;读取显示次数低位到R5
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R5 0x00
+	LI R6 0xFF
+	AND R5 R6
+	NOP	
+	;读取显示次数高位到R2
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R2 0x00
+	LI R6 0xFF
+	AND R2 R6
+	NOP	
+	;R2保存内存个数
+	SLL R2 R2 0x00
+	OR R2 R5
+
+	
+		;循环发出	
+	
+UASMLOOP:		
+	
+	LW R1 R3 0x00    ;R3为内存数据	
+
+	;发送低八位
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP
+	B TESTW	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00	
+	SW R6 R3 0x00	
+	;发送高八位
+
+	SRA R3 R3 0x00
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP
+	B TESTW	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00	
+	SW R6 R3 0x00	
+	
+	ADDIU R1 0x01   ;R1=地址加加加
+	ADDIU R2 0xFF
+	NOP
+	BNEZ R2 UASMLOOP
+	NOP	
+
+	B BEGIN
+	NOP			
+	
+;连续执行
+COMPILE:
+	;读取地址低位到R5
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R5 0x00
+	LI R6 0xFF
+	AND R5 R6
+	NOP	
+	;读取内存高位到R2
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP	
+	B TESTR	
+	NOP
+	LI R6 0xBF 
+	SLL R6 R6 0x00 
+	LW R6 R2 0x00
+	LI R6 0xFF
+	AND R2 R6
+	NOP	
+	;R2保存内存地址  传给r6
+	SLL R2 R2 0x00
+	OR R2 R5
+	ADDIU3 R2 R6 0x00
+	
+	
+	LI R7 0xBF
+	SLL R7 R7 0x00
+	ADDIU R7 0x10
+	
+	LW R7 R5 0x05
+	ADDSP 0xFF
+	SW_SP R5 0x00
+	
+	
+	;中断保存在R5中
+	MFIH R5
+	LI R1 0x80
+	SLL R1 R1 0x0
+	OR R5 R1
+	
+	
+	
+	;恢复现场
+	LW R7 R0 0x00
+	LW R7 R1 0x01
+	LW R7 R2 0x02
+	LW R7 R3 0x03
+	LW R7 R4 0x04
+	
+	
+	
+	MFPC R7
+	ADDIU R7 0x04
+	MTIH R5    ;IH高位赋1	
+	JR R6
+	LW_SP R5 0x00  ;R5恢复现场
+	
+	;用户程序执行完毕，返回kernel，保存现场
+	NOP
+	NOP
+	ADDSP 0x01
+	LI R7 0xBF
+	SLL R7 R7 0x00
+	ADDIU R7 0x10
+	
+	SW R7 R0 0x00
+	SW R7 R1 0x01
+	SW R7 R2 0x02
+	SW R7 R3 0x03
+	SW R7 R4 0x04
+	SW R7 R5 0x05
+	
+	;IH高位赋0
+	MFIH R0
+	LI R1 0x7F
+	SLL R1 R1 0x00
+	LI R2 0xFF
+	OR R1 R2	
+	AND R0 R1
+	MTIH R0
+	
+	;给终端发送结束用户程序提示
+	LI R1 0x07
+	MFPC R7
+	ADDIU R7 0x03	
+	NOP
+	B TESTW	
+	NOP	
+	LI R6 0xBF 
+	SLL R6 R6 0x00 ;R6=0xBF00	
+	SW R6 R1 0x00		
+	B BEGIN
+	NOP	
+		
+	
+	
+
+
+
+
+	
